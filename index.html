@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Bulbul | Live print</title>
+
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="./assets/apple-icon-red.png">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100dvw;
+            height: 100dvh;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+
+        .a-canvas {
+            width: 100dvw !important;
+            height: 100dvh !important;
+            min-width: 100vw !important;
+            min-height: 100vh !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            z-index: 1 !important;
+            background: transparent !important;
+            object-fit: cover !important;
+        }
+
+        body>video,
+        a-scene video {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100dvw !important;
+            height: 100dvh !important;
+            min-width: 100vw !important;
+            min-height: 100vh !important;
+            object-fit: cover !important;
+            z-index: -1;
+        }
+
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.25rem;
+            background:
+                radial-gradient(circle at top, rgba(255, 255, 255, 0.16), transparent 28%),
+                linear-gradient(180deg, rgba(10, 10, 10, 0.98), rgba(0, 0, 0, 1));
+            transition: opacity 0.8s ease;
+        }
+
+        .top-actions {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: flex-end;
+        }
+
+        .glass-button {
+            min-width: 9rem;
+            padding: 0.8rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+
+        .glass-button:hover {
+            background: rgba(255, 255, 255, 0.92);
+            color: #000;
+        }
+
+        .glass-button:active {
+            transform: scale(0.98);
+        }
+
+        .primary-button {
+            padding: 1rem 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            border-radius: 9999px;
+            background: transparent;
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+        }
+
+        .primary-button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .primary-button:not(:disabled):hover {
+            background: #fff;
+            color: #000;
+        }
+
+        .hero-mark {
+            width: min(18rem, 65vw);
+            opacity: 0.92;
+        }
+
+        .hero-copy {
+            text-align: center;
+            max-width: 28rem;
+            padding: 0 1.5rem;
+        }
+
+        .hero-copy h1 {
+            margin: 0;
+            font-size: clamp(1.8rem, 5vw, 3rem);
+            font-weight: 300;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .hero-copy p {
+            margin: 0.75rem 0 0;
+            color: rgba(255, 255, 255, 0.68);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .tracking-ui {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .scan-guide {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.25s ease;
+        }
+
+        .scan-guide.hidden {
+            opacity: 0;
+        }
+
+        .scan-frame {
+            width: min(68vw, 18rem);
+            aspect-ratio: 1 / 1;
+            border: 2px solid rgba(255, 255, 255, 0.72);
+            border-radius: 1.8rem;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+                0 0 26px rgba(255, 255, 255, 0.18);
+            position: relative;
+        }
+
+        .scan-frame::after {
+            content: "";
+            position: absolute;
+            left: 10%;
+            right: 10%;
+            top: 50%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.65);
+            box-shadow: 0 0 18px rgba(255, 255, 255, 0.6);
+            animation: scanSweep 2.2s ease-in-out infinite;
+        }
+
+        .scan-label {
+            position: absolute;
+            left: 50%;
+            bottom: -3rem;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            color: rgba(255, 255, 255, 0.92);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .language-toggle {
+            position: absolute;
+            top: 1.25rem;
+            right: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.8rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 9999px;
+            background: rgba(0, 0, 0, 0.42);
+            backdrop-filter: blur(18px);
+            color: #fff;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .language-toggle:hover {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.28);
+        }
+
+        .language-toggle svg {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .language-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.92);
+            backdrop-filter: blur(18px);
+        }
+
+        .modal-card {
+            width: min(100%, 32rem);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 1.5rem;
+            background: rgba(255, 255, 255, 0.06);
+            padding: 1.75rem;
+        }
+
+        .modal-card h2 {
+            margin: 0 0 1rem;
+            font-size: 1.25rem;
+            font-weight: 400;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .modal-card p,
+        .modal-card li {
+            color: rgba(255, 255, 255, 0.72);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .modal-card ol {
+            margin: 0;
+            padding-left: 1.2rem;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1.25rem;
+            right: 1.5rem;
+            border: 0;
+            background: transparent;
+            color: #fff;
+            font-size: 1.75rem;
+            cursor: pointer;
+        }
+
+        @keyframes scanSweep {
+            0% {
+                transform: translateY(-6rem);
+                opacity: 0.3;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(6rem);
+                opacity: 0.3;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .top-actions {
+                top: 1rem;
+                right: 1rem;
+            }
+
+            .language-toggle {
+                top: 1rem;
+                right: 1rem;
+            }
+
+            .scan-label {
+                bottom: -2.6rem;
+                font-size: 0.64rem;
+            }
+        }
+    </style>
+
+    <script>
+        let hasEnteredExperience = false;
+        let isTargetVisible = false;
+        let mediaPrimed = false;
+        let activeLanguage = 'eng';
+        let englishAudio = null;
+        let arabicAudio = null;
+        let isUpdatingSW = false;
+
+        function hideSplash() {
+            const splash = document.getElementById('splash-screen');
+            if (!splash) return;
+
+            splash.style.opacity = '0';
+            document.body.style.backgroundColor = 'transparent';
+            setTimeout(() => {
+                splash.style.display = 'none';
+            }, 800);
+        }
+
+        function updateScanGuide() {
+            const guide = document.getElementById('scan-guide');
+            if (!guide) return;
+            guide.classList.toggle('hidden', isTargetVisible);
+        }
+
+        function updateLanguageLabel() {
+            const label = document.getElementById('language-label');
+            if (label) label.textContent = activeLanguage === 'eng' ? 'English' : 'Arabic';
+        }
+
+        function getActiveAudio() {
+            return activeLanguage === 'eng' ? englishAudio : arabicAudio;
+        }
+
+        function syncInactiveAudio() {
+            if (!englishAudio || !arabicAudio) return;
+
+            const active = getActiveAudio();
+            const inactive = activeLanguage === 'eng' ? arabicAudio : englishAudio;
+            if (!active || !inactive) return;
+
+            inactive.currentTime = active.currentTime;
+            inactive.volume = 0;
+            active.volume = isTargetVisible ? 1 : 0;
+        }
+
+        function resetAudioForTargetFound() {
+            if (!englishAudio || !arabicAudio) return;
+
+            englishAudio.currentTime = 0;
+            arabicAudio.currentTime = 0;
+            englishAudio.volume = activeLanguage === 'eng' ? 1 : 0;
+            arabicAudio.volume = activeLanguage === 'arb' ? 1 : 0;
+        }
+
+        function playAudioPair() {
+            if (!englishAudio || !arabicAudio) return;
+
+            const players = [englishAudio, arabicAudio];
+            players.forEach((player) => {
+                player.loop = true;
+                player.muted = false;
+                player.play().catch((err) => console.log('Audio play blocked', player.id, err));
+            });
+        }
+
+        function restartModelAnimation() {
+            const model = document.getElementById('solar-model');
+            if (!model) return;
+
+            model.removeAttribute('animation-mixer');
+            model.setAttribute('animation-mixer', 'clip: *; loop: repeat');
+        }
+
+        function stopModelAnimation() {
+            const model = document.getElementById('solar-model');
+            if (!model) return;
+
+            model.removeAttribute('animation-mixer');
+        }
+
+        async function primeMediaOnTap() {
+            if (!englishAudio || !arabicAudio || mediaPrimed) return;
+
+            for (const player of [englishAudio, arabicAudio]) {
+                player.loop = false;
+                player.currentTime = 0;
+                player.volume = 0;
+                player.muted = false;
+                player.setAttribute('playsinline', '');
+                player.setAttribute('webkit-playsinline', '');
+            }
+
+            try {
+                await Promise.all([englishAudio.play(), arabicAudio.play()]);
+                mediaPrimed = true;
+            } catch (err) {
+                console.log('Audio prime blocked', err);
+            }
+        }
+
+        function pauseExperience(resetTime = false) {
+            if (englishAudio) {
+                englishAudio.pause();
+                englishAudio.volume = 0;
+                if (resetTime) englishAudio.currentTime = 0;
+            }
+
+            if (arabicAudio) {
+                arabicAudio.pause();
+                arabicAudio.volume = 0;
+                if (resetTime) arabicAudio.currentTime = 0;
+            }
+
+            stopModelAnimation();
+        }
+
+        async function enterExperience() {
+            if (hasEnteredExperience) return;
+
+            hasEnteredExperience = true;
+            await primeMediaOnTap();
+
+            const sceneEl = document.querySelector('a-scene');
+            if (sceneEl && sceneEl.systems['mindar-image-system']) {
+                sceneEl.systems['mindar-image-system'].start();
+            }
+
+            hideSplash();
+        }
+
+        function onTargetFound() {
+            isTargetVisible = true;
+            updateScanGuide();
+            if (!mediaPrimed) return;
+
+            restartModelAnimation();
+            resetAudioForTargetFound();
+            playAudioPair();
+        }
+
+        function onTargetLost() {
+            isTargetVisible = false;
+            updateScanGuide();
+            pauseExperience(true);
+        }
+
+        function switchLanguage() {
+            if (!englishAudio || !arabicAudio) return;
+
+            activeLanguage = activeLanguage === 'eng' ? 'arb' : 'eng';
+
+            syncInactiveAudio();
+            updateLanguageLabel();
+        }
+
+        function openHowToUse() {
+            const modal = document.getElementById('modal-how-to');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function closeHowToUse() {
+            const modal = document.getElementById('modal-how-to');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function showIOSInstall() {
+            const modal = document.getElementById('modal-ios-install');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function closeIOSInstall() {
+            const modal = document.getElementById('modal-ios-install');
+            if (modal) modal.style.display = 'none';
+        }
+
+        async function installPWA() {
+            const promptEvent = window.deferredPrompt;
+            if (!promptEvent) return;
+
+            promptEvent.prompt();
+            await promptEvent.userChoice;
+            window.deferredPrompt = null;
+
+            const btn = document.getElementById('btn-install-android');
+            if (btn) btn.style.display = 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            englishAudio = document.getElementById('voiceover-eng');
+            arabicAudio = document.getElementById('voiceover-arb');
+
+            updateLanguageLabel();
+            updateScanGuide();
+
+            const target = document.getElementById('target-0');
+            if (target) {
+                target.addEventListener('targetFound', onTargetFound);
+                target.addEventListener('targetLost', onTargetLost);
+            }
+
+            const languageButton = document.getElementById('language-toggle');
+            if (languageButton) {
+                languageButton.addEventListener('click', switchLanguage);
+            }
+
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => {
+                        reg.addEventListener('updatefound', () => {
+                            isUpdatingSW = true;
+                            const enterBtn = document.getElementById('btn-enter');
+                            if (enterBtn) {
+                                enterBtn.disabled = true;
+                                enterBtn.textContent = 'Updating Experience...';
+                            }
+
+                            const newWorker = reg.installing;
+                            if (!newWorker) return;
+
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !hasEnteredExperience) {
+                                    window.location.reload();
+                                }
+                            });
+                        });
+                    })
+                    .catch((err) => console.error('SW Error!', err));
+
+                let refreshing;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (refreshing) return;
+                    refreshing = true;
+                    if (!hasEnteredExperience) window.location.reload();
+                });
+            }
+
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                window.deferredPrompt = e;
+
+                const androidBtn = document.getElementById('btn-install-android');
+                const iosBtn = document.getElementById('btn-install-ios');
+                if (androidBtn) androidBtn.style.display = 'block';
+                if (iosBtn) iosBtn.style.display = 'none';
+            });
+
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            if (isIOS && !window.navigator.standalone) {
+                const androidBtn = document.getElementById('btn-install-android');
+                const iosBtn = document.getElementById('btn-install-ios');
+                if (androidBtn) androidBtn.style.display = 'none';
+                if (iosBtn) iosBtn.style.display = 'block';
+            }
+
+            setTimeout(() => {
+                if (!isUpdatingSW) {
+                    const enterBtn = document.getElementById('btn-enter');
+                    if (enterBtn) {
+                        enterBtn.disabled = false;
+                        enterBtn.textContent = 'Enter Experience';
+                    }
+                }
+            }, 1500);
+        });
+    </script>
+</head>
+
+<body>
+    <div id="splash-screen">
+        <div class="top-actions">
+            <button id="btn-install-android" onclick="installPWA()" class="glass-button" style="display: none;">
+                Install App
+            </button>
+            <button id="btn-install-ios" onclick="showIOSInstall()" class="glass-button" style="display: none;">
+                Install App
+            </button>
+            <button onclick="openHowToUse()" class="glass-button">
+                How To Use
+            </button>
+        </div>
+
+        <img src="./assets/logo_fann.svg" alt="Bulbul" class="hero-mark">
+
+        <div class="hero-copy">
+            <h1>Bulbul | Live print</h1>
+            <p>Scan the printed target to launch the live AR layer.</p>
+        </div>
+
+        <button id="btn-enter" onclick="enterExperience()" class="primary-button" disabled>
+            Initializing AR...
+        </button>
+    </div>
+
+    <div id="modal-how-to"
+        class="fixed inset-0 bg-black/90 backdrop-blur-md z-[999999] hidden flex-col items-center justify-center p-8">
+        <button onclick="closeHowToUse()"
+            class="absolute top-8 right-8 text-white text-3xl font-light interactive">×</button>
+        <h2 class="text-white text-2xl tracking-widest mb-10 font-light text-center">HOW TO USE</h2>
+
+        <div class="flex flex-col gap-8 w-full max-w-sm">
+            <div class="flex items-center gap-6">
+                <svg fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"
+                    class="w-10 h-10 text-white opacity-80">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                </svg>
+                <div>
+                    <h3 class="text-white font-bold tracking-widest text-sm">ALLOW CAMERA</h3>
+                    <p class="text-white/60 text-xs mt-1 leading-relaxed">The app needs camera access to see the
+                        print.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <svg fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"
+                    class="w-10 h-10 text-white opacity-80">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+                </svg>
+                <div>
+                    <h3 class="text-white font-bold tracking-widest text-sm">SCAN PRINT</h3>
+                    <p class="text-white/60 text-xs mt-1 leading-relaxed">Point your camera directly at the printed
+                        artwork.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <svg fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"
+                    class="w-10 h-10 text-white opacity-80">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                </svg>
+                <div>
+                    <h3 class="text-white font-bold tracking-widest text-sm">SOUND ON</h3>
+                    <p class="text-white/60 text-xs mt-1 leading-relaxed">Turn up your volume for the voiceover and
+                        animation.</p>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="closeHowToUse()"
+            class="mt-12 bg-white text-black px-12 py-4 rounded-full text-sm font-bold tracking-widest hover:bg-gray-200 transition interactive">
+            GOT IT
+        </button>
+    </div>
+
+    <div id="modal-ios-install" class="modal-overlay">
+        <button onclick="closeIOSInstall()" class="modal-close" aria-label="Close install help">×</button>
+        <div class="modal-card">
+            <h2>Install App</h2>
+            <p>Add this experience to your home screen for easier access.</p>
+        </div>
+    </div>
+
+    <a-scene
+        mindar-image="imageTargetSrc: ./assets/targets.mind; filterMinCF:0.0001; filterBeta: 0.01; uiScanning: no; uiLoading: no; autoStart: false;"
+        color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights; logarithmicDepthBuffer: true;"
+        vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+
+        <a-assets>
+            <audio id="voiceover-eng" src="./assets/voiceover-eng.mp3" preload="auto" playsinline
+                webkit-playsinline></audio>
+            <audio id="voiceover-arb" src="./assets/voiceover-arb.mp3" preload="auto" playsinline
+                webkit-playsinline></audio>
+        </a-assets>
+
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-light type="ambient" intensity="1.6"></a-light>
+        <a-light type="directional" position="1 2 1" intensity="1.8"></a-light>
+
+        <a-entity id="target-0" mindar-image-target="targetIndex: 0">
+            <a-gltf-model id="solar-model" src="./assets/Solar.glb" rotation="0 270 0" scale="8 8 8"
+            animation-mixer="clip: *; loop: once; timeScale: 0"></a-gltf-model>
+        </a-entity>
+    </a-scene>
+
+    <div class="tracking-ui">
+        <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch audio language">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3 5h12M9 5c0 8-2 12-5 15m8-11c1.2 3.1 3.6 7 7 10m-7-10h8m-3.5 0c-.6 3.1-2.1 6.8-5.5 10" />
+            </svg>
+            <span id="language-label" class="language-label">English</span>
+        </button>
+
+        <div id="scan-guide" class="scan-guide">
+            <div class="scan-frame">
+                <div class="scan-label">Align Print</div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
