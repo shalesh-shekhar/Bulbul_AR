@@ -231,6 +231,12 @@
             transition: background 0.2s ease, border-color 0.2s ease;
         }
 
+        .language-toggle:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         .language-toggle:hover {
             background: rgba(255, 255, 255, 0.14);
             border-color: rgba(255, 255, 255, 0.28);
@@ -337,10 +343,43 @@
         let hasEnteredExperience = false;
         let isTargetVisible = false;
         let mediaPrimed = false;
-        let activeLanguage = 'eng';
-        let englishAudio = null;
         let arabicAudio = null;
         let isUpdatingSW = false;
+
+        /*
+         * Language switching is intentionally kept here for later reactivation.
+         * The UI button is disabled for now, and only the Arabic voiceover is used.
+         *
+         * function updateLanguageLabel() {
+         *     const label = document.getElementById('language-label');
+         *     if (label) label.textContent = activeLanguage === 'eng' ? 'English' : 'Arabic';
+         * }
+         *
+         * function getActiveAudio() {
+         *     return activeLanguage === 'eng' ? englishAudio : arabicAudio;
+         * }
+         *
+         * function syncInactiveAudio() {
+         *     if (!englishAudio || !arabicAudio) return;
+         *
+         *     const active = getActiveAudio();
+         *     const inactive = activeLanguage === 'eng' ? arabicAudio : englishAudio;
+         *     if (!active || !inactive) return;
+         *
+         *     inactive.currentTime = active.currentTime;
+         *     inactive.volume = 0;
+         *     active.volume = isTargetVisible ? 1 : 0;
+         * }
+         *
+         * function switchLanguage() {
+         *     if (!englishAudio || !arabicAudio) return;
+         *
+         *     activeLanguage = activeLanguage === 'eng' ? 'arb' : 'eng';
+         *
+         *     syncInactiveAudio();
+         *     updateLanguageLabel();
+         * }
+         */
 
         function hideSplash() {
             const splash = document.getElementById('splash-screen');
@@ -359,45 +398,19 @@
             guide.classList.toggle('hidden', isTargetVisible);
         }
 
-        function updateLanguageLabel() {
-            const label = document.getElementById('language-label');
-            if (label) label.textContent = activeLanguage === 'eng' ? 'English' : 'Arabic';
-        }
-
-        function getActiveAudio() {
-            return activeLanguage === 'eng' ? englishAudio : arabicAudio;
-        }
-
-        function syncInactiveAudio() {
-            if (!englishAudio || !arabicAudio) return;
-
-            const active = getActiveAudio();
-            const inactive = activeLanguage === 'eng' ? arabicAudio : englishAudio;
-            if (!active || !inactive) return;
-
-            inactive.currentTime = active.currentTime;
-            inactive.volume = 0;
-            active.volume = isTargetVisible ? 1 : 0;
-        }
-
         function resetAudioForTargetFound() {
-            if (!englishAudio || !arabicAudio) return;
+            if (!arabicAudio) return;
 
-            englishAudio.currentTime = 0;
             arabicAudio.currentTime = 0;
-            englishAudio.volume = activeLanguage === 'eng' ? 1 : 0;
-            arabicAudio.volume = activeLanguage === 'arb' ? 1 : 0;
+            arabicAudio.volume = isTargetVisible ? 1 : 0;
         }
 
-        function playAudioPair() {
-            if (!englishAudio || !arabicAudio) return;
+        function playArabicAudio() {
+            if (!arabicAudio) return;
 
-            const players = [englishAudio, arabicAudio];
-            players.forEach((player) => {
-                player.loop = true;
-                player.muted = false;
-                player.play().catch((err) => console.log('Audio play blocked', player.id, err));
-            });
+            arabicAudio.loop = true;
+            arabicAudio.muted = false;
+            arabicAudio.play().catch((err) => console.log('Audio play blocked', arabicAudio.id, err));
         }
 
         function restartModelAnimation() {
@@ -416,32 +429,28 @@
         }
 
         async function primeMediaOnTap() {
-            if (!englishAudio || !arabicAudio || mediaPrimed) return;
+            if (!arabicAudio || mediaPrimed) return;
 
-            for (const player of [englishAudio, arabicAudio]) {
-                player.loop = false;
-                player.currentTime = 0;
-                player.volume = 0;
-                player.muted = false;
-                player.setAttribute('playsinline', '');
-                player.setAttribute('webkit-playsinline', '');
-            }
+            arabicAudio.loop = false;
+            arabicAudio.currentTime = 0;
+            arabicAudio.volume = 0;
+            arabicAudio.muted = false;
+            arabicAudio.setAttribute('playsinline', '');
+            arabicAudio.setAttribute('webkit-playsinline', '');
 
             try {
-                await Promise.all([englishAudio.play(), arabicAudio.play()]);
+                await arabicAudio.play();
                 mediaPrimed = true;
+                if (isTargetVisible) {
+                    resetAudioForTargetFound();
+                    playArabicAudio();
+                }
             } catch (err) {
                 console.log('Audio prime blocked', err);
             }
         }
 
         function pauseExperience(resetTime = false) {
-            if (englishAudio) {
-                englishAudio.pause();
-                englishAudio.volume = 0;
-                if (resetTime) englishAudio.currentTime = 0;
-            }
-
             if (arabicAudio) {
                 arabicAudio.pause();
                 arabicAudio.volume = 0;
@@ -457,11 +466,6 @@
             hasEnteredExperience = true;
             await primeMediaOnTap();
 
-            const sceneEl = document.querySelector('a-scene');
-            if (sceneEl && sceneEl.systems['mindar-image-system']) {
-                sceneEl.systems['mindar-image-system'].start();
-            }
-
             hideSplash();
         }
 
@@ -472,22 +476,13 @@
 
             restartModelAnimation();
             resetAudioForTargetFound();
-            playAudioPair();
+            playArabicAudio();
         }
 
         function onTargetLost() {
             isTargetVisible = false;
             updateScanGuide();
             pauseExperience(true);
-        }
-
-        function switchLanguage() {
-            if (!englishAudio || !arabicAudio) return;
-
-            activeLanguage = activeLanguage === 'eng' ? 'arb' : 'eng';
-
-            syncInactiveAudio();
-            updateLanguageLabel();
         }
 
         function openHowToUse() {
@@ -523,10 +518,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            englishAudio = document.getElementById('voiceover-eng');
             arabicAudio = document.getElementById('voiceover-arb');
-
-            updateLanguageLabel();
             updateScanGuide();
 
             const target = document.getElementById('target-0');
@@ -537,7 +529,8 @@
 
             const languageButton = document.getElementById('language-toggle');
             if (languageButton) {
-                languageButton.addEventListener('click', switchLanguage);
+                languageButton.disabled = true;
+                languageButton.setAttribute('aria-disabled', 'true');
             }
 
             if ('serviceWorker' in navigator) {
@@ -692,13 +685,11 @@
     </div>
 
     <a-scene
-        mindar-image="imageTargetSrc: ./assets/targets.mind; filterMinCF:0.0001; filterBeta: 0.01; uiScanning: no; uiLoading: no; autoStart: false;"
+        mindar-image="imageTargetSrc: ./assets/targets.mind; filterMinCF:0.0001; filterBeta: 0.01; uiScanning: no; uiLoading: no; autoStart: true;"
         color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights; logarithmicDepthBuffer: true;"
         vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
 
         <a-assets>
-            <audio id="voiceover-eng" src="./assets/voiceover-eng.mp3" preload="auto" playsinline
-                webkit-playsinline></audio>
             <audio id="voiceover-arb" src="./assets/voiceover-arb.mp3" preload="auto" playsinline
                 webkit-playsinline></audio>
         </a-assets>
@@ -714,7 +705,8 @@
     </a-scene>
 
     <div class="tracking-ui">
-        <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch audio language">
+        <button id="language-toggle" class="language-toggle" type="button" aria-label="Switch audio language" disabled
+            aria-disabled="true">
             <span id="language-label" class="language-label">English</span>
         </button>
 
