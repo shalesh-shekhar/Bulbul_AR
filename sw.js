@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bulbul-v1.00';
+const CACHE_NAME = 'bulbul-v1.01';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
